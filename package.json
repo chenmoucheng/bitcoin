@@ -12,11 +12,9 @@
   "dependencies": {
     "@types/node": "^10.5.5",
     "@types/node-fetch": "^2.1.2",
-    "@types/sprintf-js": "^1.1.0",
     "bitcoin-core": "^2.0.0",
     "elliptic": "^6.4.0",
     "node-fetch": "^2.2.0",
-    "ripemd160": "^2.0.2",
-    "sprintf-js": "^1.1.1"
+    "ripemd160": "^2.0.2"
   }
 }
