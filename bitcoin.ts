@@ -79,6 +79,17 @@ namespace Script {
   let secp256k1 = new elliptic.ec('secp256k1');
   let ripemd = (buf : Buffer) : Buffer => new      ripemd160().update(buf).digest();
   let sha256 = (buf : Buffer) : Buffer => createHash('sha256').update(buf).digest();
+  let verify = (pk : string, sig : string, subscr : string[], buildtx : (Buffer,number) => Buffer) : boolean => {
+    let pkk = secp256k1.keyFromPublic(pk,'hex'); let buf = Buffer.from(sig,'hex');
+    let txh = sha256(sha256(buildtx(assemble(subscr.filter(x => x !== 'OP_SEPARATOR')),buf[buf.length - 1])));
+    try {
+      if (buf[0] !== 48) throw new RangeError();
+      return pkk.verify(txh,buf.slice(0,2 + buf[1]));
+    }
+    catch (_) {
+      return pkk.verify(txh,buf.slice(0,-1));
+    }
+  };
   export const run = (scriptsig : string[], scriptpubkey : string[], buildtx : (Buffer,number) => Buffer, debug? : boolean) : boolean => {
     let flag = true;
     let script = Array.from(scriptsig).concat(scriptpubkey);
@@ -120,21 +131,41 @@ namespace Script {
         case 'OP_HASH160':   stack.push(ripemd(sha256(Buffer.from(stack.pop(),'hex'))).toString('hex')); break;
         case 'OP_HASH256':   stack.push(sha256(sha256(Buffer.from(stack.pop(),'hex'))).toString('hex')); break;
         case 'OP_CODESEPARATOR': subscr = Array.from(script); break;
-        case 'OP_CHECKSIG':
-          let pk = secp256k1.keyFromPublic(stack.pop(),'hex');
-          let buf = Buffer.from(stack.pop(),'hex');
-          let sig = buf.slice(0,-1);
-          let hashtype = buf[buf.length - 1];
-          let scr = assemble(subscr.filter(x => x !== 'OP_SEPARATOR'));
-          if (debug) console.log('subscript:', parse(scr));
-          stack.push(pk.verify(sha256(sha256(buildtx(scr,hashtype))),sig));
-          break;
+        case 'OP_CHECKSIG': let pk = stack.pop(); let sig = stack.pop(); stack.push(verify(pk,sig,subscr,buildtx)); break;
         case 'OP_CHECKSIGVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_CHECKSIG'); break;
+        case 'OP_CHECKMULTISIG':
+          let M = stack.pop(); let pks = []; for (let i = 0 ; i < M ; i += 1) pks.push(stack.pop());
+          let N = stack.pop(); let shs = []; for (let i = 0 ; i < N ; i += 1) shs.push(stack.pop());
+          if (stack.length && stack[stack.length - 1] === 0) stack.pop();
+          let n = 0;
+          for (let sh of shs) {
+            for (let pk of pks) {
+              if (verify(pk,sig,subscr,buildtx)) {
+                n += 1;
+                break;
+              }
+            }
+          }
+          stack.push(false);
+          break;
+        case 'OP_CHECKMULTISIGVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_CHECKMULTISIG'); break;
         default: throw new Error("unsupported opcode: " + op); break;
       }
       if (debug) console.log(flag,script,stack);
     }
-    return flag && stack.pop();
+    let result = flag && stack.pop();
+    if (result                                  &&
+        stack.length           !== 0            &&
+        scriptpubkey   .length === 3            &&
+        scriptpubkey[0]        === 'OP_HASH160' &&
+        scriptpubkey[1].length === 40           &&
+        scriptpubkey[2]        === 'OP_EQUAL'   &&
+        scriptsig.map(x => x.substr(0,2) !== 'OP').reduce((x,y) => x && y,true)) {
+      let scriptsig2 = Array.from(scriptsig);
+      let scriptpubkey2 = parse(Buffer.from(scriptsig2.pop(),'hex'));
+      result = run(scriptsig2,scriptpubkey2,buildtx,debug);
+    }
+    return result;
   };
 };
 
@@ -170,7 +201,9 @@ namespace Transaction {
       let len : number; [len,      bin] = Utils.parsevarint(bin);
       [tx.vin[i].scriptSig.hex,    bin] = Utils.parsefixlen(bin,len);
       if (vrfy) tx.vin[i].scriptSig.hex = Buffer.alloc(0);
-      else      tx.vin[i].scriptSig.asm = Script.parse(tx.vin[i].scriptSig.hex);
+      else if (tx.vin[i].vout !== 4294967295) {
+                tx.vin[i].scriptSig.asm = Script.parse(tx.vin[i].scriptSig.hex);
+      }
       [tx.vin[i].sequence,         bin] = Utils.parsefixint(bin,4);
     }
     let voutcnt : number; [voutcnt,bin] = Utils.parsevarint(bin);
@@ -231,13 +264,12 @@ namespace Transaction {
   };
   export const verify = (tx : parsed, from : parsed[], debug? : boolean) : boolean => {
     for (let i = 0 ; i < tx.vin.length ; i += 1) {
-      if (!Script.run(tx.vin[i].scriptSig.asm, from[i].vout[tx.vin[i].vout].scriptPubKey.asm, (subscr,hashtype) => {
+      if (!Script.run(tx.vin[i].scriptSig.asm,from[i].vout[tx.vin[i].vout].scriptPubKey.asm,(subscr,hashtype) => {
         let t = parse(assemble(tx),true);
         t.vin[i].scriptSig.hex =              subscr;
         t.vin[i].scriptSig.asm = Script.parse(subscr);
+        if (debug) console.log("subscript: " + t.vin[i].scriptSig.asm);
         switch (hashtype%32) {
-          case 1:  // SIGHASH_ALL
-            break;
           case 2:  // SIGHASH_NONE
             t.vout = [];
             for (let j = 0 ; j < t.vin.length ; j += 1) if (j !== i) t.vin[j].sequence = 0;
@@ -247,8 +279,8 @@ namespace Transaction {
             for (let j = 0 ; j < i ; j += 1) t.vout[j] = { value: -1, scriptPubKey: { asm: [], hex: Buffer.alloc(0) } };
             for (let j = 0 ; j < t.vin.length ; j += 1) if (j !== i) t.vin[j].sequence = 0;
             break;
-          default: // SIGHASH_ANYONECANPAY
-            throw new Error("unsupported hashtype: " + hashtype);
+          default: // SIGHASH_ANYONECANPAY or SIGHASH_ALL
+            if (hashtype === 128) throw new Error("unsupported hashtype: " + hashtype);
             break;
         }
         return Buffer.concat([assemble(t),fixint(hashtype,4)]);
@@ -263,10 +295,10 @@ let main = async () => {
   for (let i = 1 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
+      console.log(i,j);
       let tx = Transaction.parse(Buffer.from(await btclient.getRawTransaction(block.tx[j]),'hex'));
       let from : Transaction.parsed[] = [];
       for (let vin of tx.vin) from.push(Transaction.parse(Buffer.from(await btclient.getRawTransaction(vin.txid.toString('hex')),'hex')));
-      console.log(i,j);
       if (!Transaction.verify(tx,from)) {
         console.log(JSON.stringify(tx,(key,value) => (value.type === 'Buffer') ? Buffer.from(value).toString('hex') : value,2));
         Transaction.verify(tx,from,true);
