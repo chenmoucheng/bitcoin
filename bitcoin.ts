@@ -81,7 +81,7 @@ namespace Script {
   let sha256 = (buf : Buffer) : Buffer => createHash('sha256').update(buf).digest();
   let verify = (pk : string, sig : string, subscr : string[], buildtx : (Buffer,number) => Buffer) : boolean => {
     let pkk = secp256k1.keyFromPublic(pk,'hex'); let buf = Buffer.from(sig,'hex');
-    let txh = sha256(sha256(buildtx(assemble(subscr.filter(x => x !== 'OP_SEPARATOR')),buf[buf.length - 1])));
+    let txh = sha256(sha256(buildtx(assemble(subscr.filter(x => x !== 'OP_CODESEPARATOR')),buf[buf.length - 1])));
     try {
       if (buf[0] !== 48) throw new RangeError();
       return pkk.verify(txh,buf.slice(0,2 + buf[1]));
@@ -91,11 +91,11 @@ namespace Script {
     }
   };
   export const run = (scriptsig : string[], scriptpubkey : string[], buildtx : (Buffer,number) => Buffer, debug? : boolean) : boolean => {
-    let flag = true;
+    let result = true;
     let script = Array.from(scriptsig).concat(scriptpubkey);
     let subscr = Array.from(scriptpubkey);
     let stack = [];
-    if (debug) console.log(flag,script,stack);
+    if (debug) console.log(result,script,stack);
     while (script.length) {
       let op = script.shift();
            if (op.substr(0,2)  !== 'OP')          stack.push(op);
@@ -121,8 +121,8 @@ namespace Script {
         case 'OP_15':      stack.push(15); break;
         case 'OP_16':      stack.push(16); break;
         case 'OP_NOP':                     break;
-        case 'OP_VERIFY':  if (stack.pop() !== true) flag = false; break;
-        case 'OP_RETURN':                            flag = false; break;
+        case 'OP_VERIFY':  if (stack.pop() !== true) result = false; break;
+        case 'OP_RETURN':                            result = false; break;
         case 'OP_DROP': stack.pop(); break;
         case 'OP_DUP': let top = stack.pop(); stack.push(top); stack.push(top); break;
         case 'OP_EQUAL': let x = stack.pop(); let y = stack.pop(); stack.push(x === y); break;
@@ -141,20 +141,30 @@ namespace Script {
           let n = 0;
           for (let sh of shs) {
             for (let pk of pks) {
-              if (verify(pk,sig,subscr,buildtx)) {
+              if (verify(pk,sh,subscr,buildtx)) {
                 n += 1;
                 break;
               }
             }
           }
-          stack.push(false);
+          stack.push(n === N);
           break;
         case 'OP_CHECKMULTISIGVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_CHECKMULTISIG'); break;
+        case 'OP_NOP1':  break;
+        case 'OP_CHECKLOCKTIMEVERIFY': break;
+        case 'OP_CHECKSEQUENCEVERIFY': break;
+        case 'OP_NOP4':  break;
+        case 'OP_NOP5':  break;
+        case 'OP_NOP6':  break;
+        case 'OP_NOP7':  break;
+        case 'OP_NOP8':  break;
+        case 'OP_NOP9':  break;
+        case 'OP_NOP10': break;
         default: throw new Error("unsupported opcode: " + op); break;
       }
-      if (debug) console.log(flag,script,stack);
+      if (debug) console.log(result,script,stack);
     }
-    let result = flag && stack.pop();
+    if (stack.length) result = result && stack.pop();
     if (result                                  &&
         stack.length           !== 0            &&
         scriptpubkey   .length === 3            &&
@@ -166,6 +176,7 @@ namespace Script {
       let scriptpubkey2 = parse(Buffer.from(scriptsig2.pop(),'hex'));
       result = run(scriptsig2,scriptpubkey2,buildtx,debug);
     }
+    if (!result && scriptsig.length > 0) result = run([],scriptpubkey,buildtx,debug);
     return result;
   };
 };
@@ -293,7 +304,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 157785 ; ; i += 1) {
+  for (let i = 163685 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
