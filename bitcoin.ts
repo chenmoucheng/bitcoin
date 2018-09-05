@@ -123,6 +123,7 @@ namespace Script {
         case 'OP_NOP':                     break;
         case 'OP_VERIFY':  if (stack.pop() !== true) flag = false; break;
         case 'OP_RETURN':                            flag = false; break;
+        case 'OP_DROP': stack.pop(); break;
         case 'OP_DUP': let top = stack.pop(); stack.push(top); stack.push(top); break;
         case 'OP_EQUAL': let x = stack.pop(); let y = stack.pop(); stack.push(x === y); break;
         case 'OP_EQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_EQUAL'); break;
@@ -292,7 +293,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 1 ; ; i += 1) {
+  for (let i = 157785 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
