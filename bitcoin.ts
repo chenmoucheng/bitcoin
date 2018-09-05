@@ -90,6 +90,7 @@ namespace Script {
       return pkk.verify(txh,buf.slice(0,-1));
     }
   };
+  let num = (x : any) : number => (typeof x === 'string') ? parseInt(x,16) : (typeof x === 'number') ? x : undefined;
   export const run = (scriptsig : string[], scriptpubkey : string[], buildtx : (Buffer,number) => Buffer, debug? : boolean) : boolean => {
     let result = true;
     let script = Array.from(scriptsig).concat(scriptpubkey);
@@ -121,39 +122,39 @@ namespace Script {
         case 'OP_15':      stack.push(15); break;
         case 'OP_16':      stack.push(16); break;
         case 'OP_NOP':                     break;
-        case 'OP_VERIFY':  if (stack.pop() !== true) result = false; break;
-        case 'OP_RETURN':                            result = false; break;
-        case 'OP_DROP': stack.pop(); break;
-        case 'OP_DUP': let top = stack.pop(); stack.push(top); stack.push(top); break;
-        case 'OP_EQUAL':              stack.push(         stack.pop() === stack.pop());                                       break;
-        case 'OP_EQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_EQUAL'); break;
-        case 'OP_1ADD':               stack.push(         stack.pop() + 1);                                                   break;
-        case 'OP_1SUB':               stack.push(         stack.pop() - 1);                                                   break;
-        case 'OP_2MUL':               stack.push(         stack.pop() * 2);                                   result = false; break;
-        case 'OP_2DIV':               stack.push(         stack.pop() / 2);                                   result = false; break;
-        case 'OP_NEGATE':             stack.push(       - stack.pop());                                                       break;
-        case 'OP_ABS':                stack.push(Math.abs(stack.pop()));                                                      break;
-        case 'OP_NOT':                stack.push(        (stack.pop() === 0) ? 1 : 0);                                        break;
-        case 'OP_0NOTEQUAL':          stack.push(        (stack.pop() === 0) ? 0 : 1);                                        break;
-        case 'OP_ADD':                stack.push(         stack.pop() + stack.pop());                                         break;
-        case 'OP_SUB':                stack.push(         stack.pop() - stack.pop());                                         break;
-        case 'OP_MUL':                stack.push(         stack.pop() * stack.pop());                         result = false; break;
-        case 'OP_DIV':                stack.push(         stack.pop() / stack.pop());                         result = false; break;
-        case 'OP_MOD':                stack.push(         stack.pop() % stack.pop());                         result = false; break;
-        case 'OP_LSHIFT':             stack.push(         stack.pop() % stack.pop());                         result = false; break;
-        case 'OP_RSHIFT':             stack.push(         stack.pop() % stack.pop());                         result = false; break;
-        case 'OP_BOOLAND':            stack.push(        (stack.pop() !== '' && stack.pop() !== '') ? 1 : 0);                 break;
-        case 'OP_BOOLOR':             stack.push(        (stack.pop() !== '' || stack.pop() !== '') ? 1 : 0);                 break;
-        case 'OP_NUMEQUAL':           stack.push(        (stack.pop() === stack.pop()) ? 1 : 0);                              break;
-        case 'OP_NUMEQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_NUMEQUAL'); break;
-        case 'OP_NUMNOTEQUAL':        stack.push(        (stack.pop() !== stack.pop()) ? 1 : 0);                              break;
-        case 'OP_LESSTHAN':           stack.push(        (stack.pop()  <  stack.pop()) ? 1 : 0);                              break;
-        case 'OP_GREATERTHAN':        stack.push(        (stack.pop()  >  stack.pop()) ? 1 : 0);                              break;
-        case 'OP_LESSTHANOREQUAL':    stack.push(        (stack.pop()  <= stack.pop()) ? 1 : 0);                              break;
-        case 'OP_GREATERTHANOREQUAL': stack.push(        (stack.pop()  >= stack.pop()) ? 1 : 0);                              break;
-        case 'OP_MIN': let min1 = stack.pop(); let min2 = stack.pop(); stack.push((min1 < min2) ? min1 : min2); break;
-        case 'OP_MAX': let max1 = stack.pop(); let max2 = stack.pop(); stack.push((max1 > max2) ? max1 : max2); break;
-        case 'OP_WITHIN': let w1 = stack.pop(); let w2 = stack.pop(); let w3 = stack.pop(); stack.push((w2 <= w1 && w1 < w3) ? 1 : 0); break;
+        case 'OP_VERIFY':    if (stack.pop() !== true)          result = false; break;
+        case 'OP_RETURN':                                       result = false; break;
+        case 'OP_DROP':          stack.pop();                                   break;
+        case 'OP_DUP': let dup = stack.pop(); stack.push(dup); stack.push(dup); break;
+        case 'OP_EQUAL':              stack.push(         num(stack.pop()) === num(stack.pop()));                                 break;
+        case 'OP_EQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_EQUAL');                                           break;
+        case 'OP_1ADD':               stack.push(         num(stack.pop()) + 1);                                                  break;
+        case 'OP_1SUB':               stack.push(         num(stack.pop()) - 1);                                                  break;
+        case 'OP_2MUL':               stack.push(         num(stack.pop()) * 2);                                  result = false; break;
+        case 'OP_2DIV':               stack.push(         num(stack.pop()) / 2);                                  result = false; break;
+        case 'OP_NEGATE':             stack.push(       - num(stack.pop()));                                                      break;
+        case 'OP_ABS':                stack.push(Math.abs(num(stack.pop())));                                                     break;
+        case 'OP_NOT':                stack.push(        (num(stack.pop()) === 0) ? 1 : 0);                                       break;
+        case 'OP_0NOTEQUAL':          stack.push(        (num(stack.pop()) === 0) ? 0 : 1);                                       break;
+        case 'OP_ADD':                stack.push(         num(stack.pop()) + num(stack.pop()));                                   break;
+        case 'OP_SUB':                stack.push(         num(stack.pop()) - num(stack.pop()));                                   break;
+        case 'OP_MUL':                stack.push(         num(stack.pop()) * num(stack.pop()));                   result = false; break;
+        case 'OP_DIV':                stack.push(         num(stack.pop()) / num(stack.pop()));                   result = false; break;
+        case 'OP_MOD':                stack.push(         num(stack.pop()) % num(stack.pop()));                   result = false; break;
+        case 'OP_LSHIFT':             stack.push(         num(stack.pop()) << num(stack.pop()));                  result = false; break;
+        case 'OP_RSHIFT':             stack.push(         num(stack.pop()) >> num(stack.pop()));                  result = false; break;
+        case 'OP_BOOLAND':            stack.push(            (stack.pop() !== '' && stack.pop() !== '') ? 1 : 0);                 break;
+        case 'OP_BOOLOR':             stack.push(            (stack.pop() !== '' || stack.pop() !== '') ? 1 : 0);                 break;
+        case 'OP_NUMEQUAL':           stack.push(        (num(stack.pop()) === num(stack.pop())) ? 1 : 0);                        break;
+        case 'OP_NUMEQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_NUMEQUAL');                                     break;
+        case 'OP_NUMNOTEQUAL':        stack.push(        (num(stack.pop()) !== num(stack.pop())) ? 1 : 0);                        break;
+        case 'OP_LESSTHAN':           stack.push(        (num(stack.pop()) <   num(stack.pop())) ? 1 : 0);                        break;
+        case 'OP_GREATERTHAN':        stack.push(        (num(stack.pop()) >   num(stack.pop())) ? 1 : 0);                        break;
+        case 'OP_LESSTHANOREQUAL':    stack.push(        (num(stack.pop()) <=  num(stack.pop())) ? 1 : 0);                        break;
+        case 'OP_GREATERTHANOREQUAL': stack.push(        (num(stack.pop()) >=  num(stack.pop())) ? 1 : 0);                        break;
+        case 'OP_MIN':                              let min1 = num(stack.pop()); let min2 = num(stack.pop()); stack.push((min1 < min2) ? min1 : min2); break;
+        case 'OP_MAX':                              let max1 = num(stack.pop()); let max2 = num(stack.pop()); stack.push((max1 > max2) ? max1 : max2); break;
+        case 'OP_WITHIN': let w = num(stack.pop()); let w1   = num(stack.pop()); let w2   = num(stack.pop()); stack.push((w1 <= w && w < w2) ? 1 : 0); break;
         case 'OP_RIPEMD160': stack.push(       ripemd(Buffer.from(stack.pop(),'hex')) .toString('hex')); break;
         case 'OP_SHA256':    stack.push(       sha256(Buffer.from(stack.pop(),'hex')) .toString('hex')); break;
         case 'OP_HASH160':   stack.push(ripemd(sha256(Buffer.from(stack.pop(),'hex'))).toString('hex')); break;
@@ -331,7 +332,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 170977 ; ; i += 1) {
+  for (let i = 171043 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
