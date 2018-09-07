@@ -18,4 +18,6 @@ Format: block height, TX, URL
   Input 0 is coinbase without valid script:
   https://www.blockchain.com/btc/tx/50cfd3361f7162b3c0c00dacd3d0e4ddf61e8ec0c51bfa54c4ca0e61876810a9
 
+207733, 323, https://www.blockchain.com/btc/tx/51bf528ecf3c161e7c021224197dbe84f9a8564212f6207baa014c01a1668e1e
+  Hashtype is 0x81.
 

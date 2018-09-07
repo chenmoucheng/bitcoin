@@ -286,12 +286,12 @@ namespace Transaction {
     let bin : Buffer[] = [];
     bin.push(fixint(tx.version,4));
     bin.push(varint(tx.vin.length));
-    for (let i = 0 ; i < tx.vin.length ; i += 1) {
-      bin.push(Utils.reverse(tx.vin[i].txid));
-      bin.push(       fixint(tx.vin[i].vout,4));
-      bin.push(       varint(tx.vin[i].scriptSig.hex.length));
-      bin.push(              tx.vin[i].scriptSig.hex);
-      bin.push(       fixint(tx.vin[i].sequence,4));
+    for (let vin of tx.vin) {
+      bin.push(Utils.reverse(vin.txid));
+      bin.push(       fixint(vin.vout,4));
+      bin.push(       varint(vin.scriptSig.hex.length));
+      bin.push(              vin.scriptSig.hex);
+      bin.push(       fixint(vin.sequence,4));
     }
     bin.push(varint(tx.vout.length));
     for (let vout of tx.vout) {
@@ -308,7 +308,6 @@ namespace Transaction {
         let t = parse(assemble(tx),true);
         t.vin[i].scriptSig.hex =              subscr;
         t.vin[i].scriptSig.asm = Script.parse(subscr);
-        if (debug) console.log("subscript: " + t.vin[i].scriptSig.asm);
         switch (hashtype%32) {
           case 2:  // SIGHASH_NONE
             t.vout = [];
@@ -320,9 +319,10 @@ namespace Transaction {
             for (let j = 0 ; j < t.vin.length ; j += 1) if (j !== i) t.vin[j].sequence = 0;
             break;
           default: // SIGHASH_ANYONECANPAY or SIGHASH_ALL
-            if (hashtype === 128) throw new Error("unsupported hashtype: " + hashtype);
+            if (hashtype & 128) t.vin = t.vin.slice(i,i + 1);
             break;
         }
+        if (debug) console.log(t,Script.parse(subscr));
         return Buffer.concat([assemble(t),fixint(hashtype,4)]);
       },debug)) return false;
     }
@@ -332,7 +332,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 171043 ; ; i += 1) {
+  for (let i = 207733 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
