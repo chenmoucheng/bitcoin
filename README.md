@@ -21,3 +21,8 @@ Format: block height, TX, URL
 207733, 323, https://www.blockchain.com/btc/tx/51bf528ecf3c161e7c021224197dbe84f9a8564212f6207baa014c01a1668e1e
   Hashtype is 0x81.
 
+211804, 244, https://www.blockchain.com/btc/tx/70c4e749f2b8b907875d1483ae43e8a6790b0c8397bbb33682e3602617f9a77a
+  Invalid input public key(s):
+  https://www.blockchain.com/btc/tx/274f8be3b7b9b1a220285f5f71f61e2691dd04df9d69bb02a8b3b85f91fb1857
+  https://www.blockchain.com/btc/tx/70c15eb4cc3890960dbe1ae0cf13eedaeaef04d8e4820398fb4e991b23528f03
+

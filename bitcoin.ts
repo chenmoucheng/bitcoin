@@ -80,14 +80,19 @@ namespace Script {
   let ripemd = (buf : Buffer) : Buffer => new      ripemd160().update(buf).digest();
   let sha256 = (buf : Buffer) : Buffer => createHash('sha256').update(buf).digest();
   let verify = (pk : string, sig : string, subscr : string[], buildtx : (Buffer,number) => Buffer) : boolean => {
-    let pkk = secp256k1.keyFromPublic(pk,'hex'); let buf = Buffer.from(sig,'hex');
-    let txh = sha256(sha256(buildtx(assemble(subscr.filter(x => x !== 'OP_CODESEPARATOR')),buf[buf.length - 1])));
     try {
-      if (buf[0] !== 48) throw new RangeError();
-      return pkk.verify(txh,buf.slice(0,2 + buf[1]));
+      let pkk = secp256k1.keyFromPublic(pk,'hex'); let buf = Buffer.from(sig,'hex');
+      let txh = sha256(sha256(buildtx(assemble(subscr.filter(x => x !== 'OP_CODESEPARATOR')),buf[buf.length - 1])));
+      try {
+        if (buf[0] !== 48) throw new RangeError();
+        return pkk.verify(txh,buf.slice(0,2 + buf[1]));
+      }
+      catch (_) {
+        return pkk.verify(txh,buf.slice(0,-1));
+      }
     }
     catch (_) {
-      return pkk.verify(txh,buf.slice(0,-1));
+      return false;
     }
   };
   let num = (x : any) : number => (typeof x === 'string') ? parseInt(x,16) : (typeof x === 'number') ? x : undefined;
