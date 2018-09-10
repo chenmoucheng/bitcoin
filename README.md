@@ -26,3 +26,6 @@ Format: block height, TX, URL
   https://www.blockchain.com/btc/tx/274f8be3b7b9b1a220285f5f71f61e2691dd04df9d69bb02a8b3b85f91fb1857
   https://www.blockchain.com/btc/tx/70c15eb4cc3890960dbe1ae0cf13eedaeaef04d8e4820398fb4e991b23528f03
 
+218695,  26, https://www.blockchain.com/btc/tx/bde69c82fa0870bb156edb334da4a8013d5d385e93608110313a8695184d6365
+  Hashtype is 0x83.
+

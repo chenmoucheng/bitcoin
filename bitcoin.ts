@@ -319,14 +319,15 @@ namespace Transaction {
             for (let j = 0 ; j < t.vin.length ; j += 1) if (j !== i) t.vin[j].sequence = 0;
             break;
           case 3:  // SIGHASH_SINGLE
-            t.vout = new Array(i + 1);
-            for (let j = 0 ; j < i ; j += 1) t.vout[j] = { value: -1, scriptPubKey: { asm: [], hex: Buffer.alloc(0) } };
+            t.vout = t.vout.slice(0,i + 1);
+            for (let j = 0 ; j < i ; j += 1) t.vout[j] = { value: 4294967295, scriptPubKey: { asm: [], hex: Buffer.alloc(0) } };
             for (let j = 0 ; j < t.vin.length ; j += 1) if (j !== i) t.vin[j].sequence = 0;
             break;
-          default: // SIGHASH_ANYONECANPAY or SIGHASH_ALL
-            if (hashtype & 128) t.vin = t.vin.slice(i,i + 1);
+          default: // SIGHASH_ALL
             break;
         }
+        // SIGHASH_ANYONECANPAY
+        if (hashtype & 128) t.vin = t.vin.slice(i,i + 1);
         if (debug) console.log(t,Script.parse(subscr));
         return Buffer.concat([assemble(t),fixint(hashtype,4)]);
       },debug)) return false;
@@ -337,7 +338,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 207733 ; ; i += 1) {
+  for (let i = 218695 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
