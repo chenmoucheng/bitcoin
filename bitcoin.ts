@@ -276,7 +276,8 @@ namespace Transaction {
       case 1: return render(undefined,1,x); break;
       case 2: return render(undefined,2,x); break;
       case 4: return render(undefined,4,x); break;
-      case 8: return render(undefined,8,x); break;
+      case 8: if (x < 0) { let buf : Buffer; buf = Buffer.alloc(8); buf.writeIntLE(x,0,6); buf.writeIntLE(-1,6,2); return buf; }
+         else return render(undefined,8,x); break;
       default: throw new RangeError(); break;
     }
   };
@@ -320,7 +321,7 @@ namespace Transaction {
             break;
           case 3:  // SIGHASH_SINGLE
             t.vout = t.vout.slice(0,i + 1);
-            for (let j = 0 ; j < i ; j += 1) t.vout[j] = { value: 4294967295, scriptPubKey: { asm: [], hex: Buffer.alloc(0) } };
+            for (let j = 0 ; j < i ; j += 1) t.vout[j] = { value: -1, scriptPubKey: { asm: [], hex: Buffer.alloc(0) } };
             for (let j = 0 ; j < t.vin.length ; j += 1) if (j !== i) t.vin[j].sequence = 0;
             break;
           default: // SIGHASH_ALL
@@ -328,7 +329,7 @@ namespace Transaction {
         }
         // SIGHASH_ANYONECANPAY
         if (hashtype & 128) t.vin = t.vin.slice(i,i + 1);
-        if (debug) console.log(t,Script.parse(subscr));
+        if (debug) console.log(JSON.stringify(t,(key,value) => (value.type === 'Buffer') ? Buffer.from(value).toString('hex') : value,2));
         return Buffer.concat([assemble(t),fixint(hashtype,4)]);
       },debug)) return false;
     }
@@ -338,7 +339,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 218695 ; ; i += 1) {
+  for (let i = 238797 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
