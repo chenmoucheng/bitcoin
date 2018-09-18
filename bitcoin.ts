@@ -85,10 +85,10 @@ namespace Script {
       let txh = sha256(sha256(buildtx(assemble(subscr.filter(x => x !== 'OP_CODESEPARATOR')),buf[buf.length - 1])));
       try {
         if (buf[0] !== 48) throw new RangeError();
-        return pkk.verify(txh,buf.slice(0,2 + buf[1]));
+        return pkk.verify(txh,buf.slice(0,2 + buf[1])) || pkk.verify(Buffer.from([1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),buf.slice(0,2 + buf[1]));
       }
       catch (_) {
-        return pkk.verify(txh,buf.slice(0,-1));
+        return pkk.verify(txh,buf.slice(0,-1))         || pkk.verify(Buffer.from([1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),buf.slice(0,-1));
       }
     }
     catch (_) {
@@ -266,9 +266,9 @@ namespace Transaction {
     return tx;
   };
   let render = (prefix : number, xlen : number, x : number) : Buffer => {
-    let buf : Buffer;
-    if (prefix === undefined) { buf = Buffer.alloc(    xlen);                              buf.writeUIntLE(x,0,(xlen > 6) ? 6 : xlen); }
-    else {                      buf = Buffer.alloc(1 + xlen); buf.writeUIntLE(prefix,0,1); buf.writeUIntLE(x,1,(xlen > 6) ? 6 : xlen); }
+    let buf : Buffer; let len = (xlen > 6) ? 6 : xlen;
+    if (prefix === undefined) { buf = Buffer.alloc(    xlen);                              if (x < 0) { buf.writeIntLE(x,0,len) ; buf.writeIntLE(-1,    len,xlen - len); } else buf.writeUIntLE(x,0,len); }
+    else {                      buf = Buffer.alloc(1 + xlen); buf.writeUIntLE(prefix,0,1); if (x < 0) { buf.writeIntLE(x,1,len) ; buf.writeIntLE(-1,1 + len,xlen - len); } else buf.writeUIntLE(x,1,len); }
     return buf;
   };
   let fixint = (x : number, n : number) : Buffer => {
@@ -276,8 +276,7 @@ namespace Transaction {
       case 1: return render(undefined,1,x); break;
       case 2: return render(undefined,2,x); break;
       case 4: return render(undefined,4,x); break;
-      case 8: if (x < 0) { let buf : Buffer; buf = Buffer.alloc(8); buf.writeIntLE(x,0,6); buf.writeIntLE(-1,6,2); return buf; }
-         else return render(undefined,8,x); break;
+      case 8: return render(undefined,8,x); break;
       default: throw new RangeError(); break;
     }
   };
@@ -314,7 +313,7 @@ namespace Transaction {
         let t = parse(assemble(tx),true);
         t.vin[i].scriptSig.hex =              subscr;
         t.vin[i].scriptSig.asm = Script.parse(subscr);
-        switch (hashtype%32) {
+        switch (hashtype & 31) {
           case 2:  // SIGHASH_NONE
             t.vout = [];
             for (let j = 0 ; j < t.vin.length ; j += 1) if (j !== i) t.vin[j].sequence = 0;
@@ -339,7 +338,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 238797 ; ; i += 1) {
+  for (let i = 247939 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);

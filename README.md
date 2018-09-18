@@ -32,3 +32,6 @@ Format: block height, TX, URL
 238797, 316, https://www.blockchain.com/btc/tx/afd9c17f8913577ec3509520bd6e5d63e9c0fd2a5f70c787993b097ba6ca9fae
   Multiple SIGHASH_SINGLE inputs.
 
+247939,  64, https://www.blockchain.com/btc/tx/315ac7d4c26d69668129cc352851d9389b4a6868f1509c6c8b66bead11e2619f
+  # SIGHASH_SINGLE inputs > # outputs.
+
