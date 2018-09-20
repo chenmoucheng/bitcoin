@@ -76,6 +76,7 @@ namespace Script {
     }
     return Buffer.concat(bin);
   };
+  let top = (s : any[]) : any => s[s.length - 1];
   let secp256k1 = new elliptic.ec('secp256k1');
   let ripemd = (buf : Buffer) : Buffer => new      ripemd160().update(buf).digest();
   let sha256 = (buf : Buffer) : Buffer => createHash('sha256').update(buf).digest();
@@ -101,7 +102,9 @@ namespace Script {
     let script = Array.from(scriptsig).concat(scriptpubkey);
     let subscr = Array.from(scriptpubkey);
     let stack = [];
-    if (debug) console.log(result,script,stack);
+    let if_level = 0;
+    let if_stack = [];
+    if (debug) console.log(result,script,stack,if_level,if_stack);
     while (script.length) {
       let op = script.shift();
            if (op.substr(0,2)  !== 'OP')          stack.push(op);
@@ -127,10 +130,15 @@ namespace Script {
         case 'OP_15':      stack.push(15); break;
         case 'OP_16':      stack.push(16); break;
         case 'OP_NOP':                     break;
+        case 'OP_IF':    if_level += 1; if_stack.push(    stack.pop()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
+        case 'OP_NOTIF': if_level += 1; if_stack.push(!   stack.pop()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
+        case 'OP_ELSE':                 if_stack.push(!if_stack.pop()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
+        case 'OP_ENDIF': if_level -= 1; if_stack.pop(); if (if_level < 0) result = false; break;
         case 'OP_VERIFY':    if (stack.pop() !== true)          result = false; break;
         case 'OP_RETURN':                                       result = false; break;
         case 'OP_DROP':          stack.pop();                                   break;
         case 'OP_DUP': let dup = stack.pop(); stack.push(dup); stack.push(dup); break;
+        case 'OP_SIZE':               stack.push(top(stack).length/2);                                                            break;
         case 'OP_EQUAL':              stack.push(         num(stack.pop()) === num(stack.pop()));                                 break;
         case 'OP_EQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_EQUAL');                                           break;
         case 'OP_1ADD':               stack.push(         num(stack.pop()) + 1);                                                  break;
@@ -142,7 +150,7 @@ namespace Script {
         case 'OP_NOT':                stack.push(        (num(stack.pop()) === 0) ? 1 : 0);                                       break;
         case 'OP_0NOTEQUAL':          stack.push(        (num(stack.pop()) === 0) ? 0 : 1);                                       break;
         case 'OP_ADD':                stack.push(         num(stack.pop()) + num(stack.pop()));                                   break;
-        case 'OP_SUB':                stack.push(         num(stack.pop()) - num(stack.pop()));                                   break;
+        case 'OP_SUB':                stack.push(       - num(stack.pop()) + num(stack.pop()));                                   break;
         case 'OP_MUL':                stack.push(         num(stack.pop()) * num(stack.pop()));                   result = false; break;
         case 'OP_DIV':                stack.push(         num(stack.pop()) / num(stack.pop()));                   result = false; break;
         case 'OP_MOD':                stack.push(         num(stack.pop()) % num(stack.pop()));                   result = false; break;
@@ -170,7 +178,7 @@ namespace Script {
         case 'OP_CHECKMULTISIG':
           let M = stack.pop(); let pks = []; for (let i = 0 ; i < M ; i += 1) pks.push(stack.pop());
           let N = stack.pop(); let shs = []; for (let i = 0 ; i < N ; i += 1) shs.push(stack.pop());
-          if (stack.length && stack[stack.length - 1] === 0) stack.pop();
+          if (stack.length && top(stack) === 0) stack.pop();
           let n = 0;
           for (let sh of shs) {
             for (let pk of pks) {
@@ -195,7 +203,7 @@ namespace Script {
         case 'OP_NOP10': break;
         default: throw new Error("unsupported opcode: " + op); break;
       }
-      if (debug) console.log(result,script,stack);
+      if (debug) console.log(result,script,stack,if_level,if_stack);
     }
     if (stack.length) result = result && stack.pop();
     if (result                                  &&
@@ -338,7 +346,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 247939 ; ; i += 1) {
+  for (let i = 249976 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
