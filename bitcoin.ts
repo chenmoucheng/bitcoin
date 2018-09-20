@@ -81,6 +81,7 @@ namespace Script {
   let secp256k1 = new elliptic.ec('secp256k1');
   let ripemd = (buf : Buffer) : Buffer => new      ripemd160().update(buf).digest();
   let sha256 = (buf : Buffer) : Buffer => createHash('sha256').update(buf).digest();
+  let sha1   = (buf : Buffer) : Buffer => createHash('sha1')  .update(buf).digest();
   let verify = (pk : string, sig : string, subscr : string[], buildtx : (Buffer,number) => Buffer) : boolean => {
     try {
       let pkk = secp256k1.keyFromPublic(pk,'hex'); let buf = Buffer.from(sig,'hex');
@@ -97,14 +98,42 @@ namespace Script {
       return false;
     }
   };
-  let num = (x : any) : number => (typeof x === 'string') ? parseInt(x,16) : (typeof x === 'number') ? x : undefined;
+  class Stack {
+    store : string[];
+    constructor() { this.store = []; }
+    isempty() : boolean { return this.store.length === 0; }
+    popbool() : boolean { let x = this.pop(); return x !== '' && x !== '00' && x !== '80'; }
+    popnum() : number {
+      let buf = Buffer.from(this.pop(),'hex');
+      let x = (buf.length > 1) ? parseInt(Utils.reverse(buf.slice(1)).toString('hex'),16) : 0;
+      let y = 128*x + (buf[0] & 127);
+      return (buf[0] & 128) ? -y : y;
+    }
+    pop() : any { return this.store.pop(); }
+    top() : any { return this.store[this.store.length - 1]; }
+    push(x : any) {
+      let y : string;
+      if (typeof x === 'boolean') y = x ? '01' : '00';
+      else if (typeof x === 'number') {
+        let xx = Math.abs(x);
+        let buf = Buffer.alloc((xx < 128) ? 1 : (xx < 32768) ? 2 : (xx < 2147483648) ? 4 : 6);
+        if (buf.length > 1) buf.writeUIntLE(xx >> 7,1,buf.length - 1);
+        buf.writeUIntLE(xx & 127,0,1);
+        if (x < 0) buf[0] |= 128;
+        y = buf.toString('hex');
+      }
+      else if (typeof x === 'string') y = x;
+      else y = x.toString('hex');
+      this.store.push(y);
+    }
+  };
   export const run = (scriptsig : string[], scriptpubkey : string[], buildtx : (Buffer,number) => Buffer, debug? : boolean) : boolean => {
     let result = true;
     let script = Array.from(scriptsig).concat(scriptpubkey);
     let subscr = Array.from(scriptpubkey);
-    let stack = [];
+    let stack = new Stack();
     let if_level = 0;
-    let if_stack = [];
+    let if_stack : boolean[] = [];
     if (debug) console.log(result,script,stack,if_level,if_stack);
     while (script.length) {
       let op = script.shift();
@@ -131,55 +160,56 @@ namespace Script {
         case 'OP_15':      stack.push(15); break;
         case 'OP_16':      stack.push(16); break;
         case 'OP_NOP':                     break;
-        case 'OP_IF':    if_level += 1; if_stack.push(    stack.pop()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
-        case 'OP_NOTIF': if_level += 1; if_stack.push(!   stack.pop()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
-        case 'OP_ELSE':                 if_stack.push(!if_stack.pop()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
+        case 'OP_IF':    if_level += 1; if_stack.push( stack.popbool()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
+        case 'OP_NOTIF': if_level += 1; if_stack.push(!stack.popbool()); if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
+        case 'OP_ELSE':                 if_stack.push(!if_stack.pop());  if (!top(if_stack)) while (script[0] !== 'OP_ELSE' && script[0] !== 'OP_ENDIF') script.shift(); break;
         case 'OP_ENDIF': if_level -= 1; if_stack.pop(); if (if_level < 0) result = false; break;
-        case 'OP_VERIFY':    if (stack.pop() !== true)          result = false; break;
-        case 'OP_RETURN':                                       result = false; break;
-        case 'OP_DROP':          stack.pop();                                   break;
-        case 'OP_DUP': let dup = stack.pop(); stack.push(dup); stack.push(dup); break;
-        case 'OP_SIZE':               stack.push(top(stack).length/2);                                                            break;
-        case 'OP_EQUAL':              stack.push(         num(stack.pop()) === num(stack.pop()));                                 break;
-        case 'OP_EQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_EQUAL');                                           break;
-        case 'OP_1ADD':               stack.push(         num(stack.pop()) + 1);                                                  break;
-        case 'OP_1SUB':               stack.push(         num(stack.pop()) - 1);                                                  break;
-        case 'OP_2MUL':               stack.push(         num(stack.pop()) * 2);                                  result = false; break;
-        case 'OP_2DIV':               stack.push(         num(stack.pop()) / 2);                                  result = false; break;
-        case 'OP_NEGATE':             stack.push(       - num(stack.pop()));                                                      break;
-        case 'OP_ABS':                stack.push(Math.abs(num(stack.pop())));                                                     break;
-        case 'OP_NOT':                stack.push(        (num(stack.pop()) === 0) ? 1 : 0);                                       break;
-        case 'OP_0NOTEQUAL':          stack.push(        (num(stack.pop()) === 0) ? 0 : 1);                                       break;
-        case 'OP_ADD':                stack.push(         num(stack.pop()) + num(stack.pop()));                                   break;
-        case 'OP_SUB':                stack.push(       - num(stack.pop()) + num(stack.pop()));                                   break;
-        case 'OP_MUL':                stack.push(         num(stack.pop()) * num(stack.pop()));                   result = false; break;
-        case 'OP_DIV':                stack.push(         num(stack.pop()) / num(stack.pop()));                   result = false; break;
-        case 'OP_MOD':                stack.push(         num(stack.pop()) % num(stack.pop()));                   result = false; break;
-        case 'OP_LSHIFT':             stack.push(         num(stack.pop()) << num(stack.pop()));                  result = false; break;
-        case 'OP_RSHIFT':             stack.push(         num(stack.pop()) >> num(stack.pop()));                  result = false; break;
-        case 'OP_BOOLAND':            stack.push(            (stack.pop() !== '' && stack.pop() !== '') ? 1 : 0);                 break;
-        case 'OP_BOOLOR':             stack.push(            (stack.pop() !== '' || stack.pop() !== '') ? 1 : 0);                 break;
-        case 'OP_NUMEQUAL':           stack.push(        (num(stack.pop()) === num(stack.pop())) ? 1 : 0);                        break;
-        case 'OP_NUMEQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_NUMEQUAL');                                     break;
-        case 'OP_NUMNOTEQUAL':        stack.push(        (num(stack.pop()) !== num(stack.pop())) ? 1 : 0);                        break;
-        case 'OP_LESSTHAN':           stack.push(        (num(stack.pop()) <   num(stack.pop())) ? 1 : 0);                        break;
-        case 'OP_GREATERTHAN':        stack.push(        (num(stack.pop()) >   num(stack.pop())) ? 1 : 0);                        break;
-        case 'OP_LESSTHANOREQUAL':    stack.push(        (num(stack.pop()) <=  num(stack.pop())) ? 1 : 0);                        break;
-        case 'OP_GREATERTHANOREQUAL': stack.push(        (num(stack.pop()) >=  num(stack.pop())) ? 1 : 0);                        break;
-        case 'OP_MIN':                              let min1 = num(stack.pop()); let min2 = num(stack.pop()); stack.push((min1 < min2) ? min1 : min2); break;
-        case 'OP_MAX':                              let max1 = num(stack.pop()); let max2 = num(stack.pop()); stack.push((max1 > max2) ? max1 : max2); break;
-        case 'OP_WITHIN': let w = num(stack.pop()); let w1   = num(stack.pop()); let w2   = num(stack.pop()); stack.push((w1 <= w && w < w2) ? 1 : 0); break;
+        case 'OP_VERIFY': if (!stack.popbool()) result = false; break;
+        case 'OP_RETURN': result = false; break;
+        case 'OP_DROP': stack.pop(); break;
+        case 'OP_DUP': { let x = stack.pop(); stack.push(x); stack.push(x); break; }
+        case 'OP_SIZE': stack.push(Buffer.from(stack.top(),'hex').length.toString(16)); break;
+        case 'OP_EQUAL': stack.push(stack.pop() === stack.pop()); break;
+        case 'OP_EQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_EQUAL'); break;
+        case 'OP_1ADD':                             stack.push(         stack.popnum() + 1);                              break;
+        case 'OP_1SUB':                             stack.push(         stack.popnum() - 1);                              break;
+        case 'OP_2MUL':                             stack.push(         stack.popnum() * 2);              result = false; break;
+        case 'OP_2DIV':                             stack.push(         stack.popnum() / 2);              result = false; break;
+        case 'OP_NEGATE':                           stack.push(       - stack.popnum());                                  break;
+        case 'OP_ABS':                              stack.push(Math.abs(stack.popnum()));                                 break;
+        case 'OP_NOT':                              stack.push(         stack.popnum() === 0);                            break;
+        case 'OP_0NOTEQUAL':                        stack.push(       !(stack.popnum() === 0));                           break;
+        case 'OP_ADD':                              stack.push(         stack.popnum() + stack.popnum());                 break;
+        case 'OP_SUB':                              stack.push(       - stack.popnum() + stack.popnum());                 break;
+        case 'OP_MUL':                              stack.push(         stack.popnum() * stack.popnum()); result = false; break;
+        case 'OP_DIV':    { let x = stack.popnum(); stack.push(         stack.popnum() /  x);             result = false; break; }
+        case 'OP_MOD':    { let x = stack.popnum(); stack.push(         stack.popnum() %  x);             result = false; break; }
+        case 'OP_LSHIFT': { let x = stack.popnum(); stack.push(         stack.popnum() << x);             result = false; break; }
+        case 'OP_RSHIFT': { let x = stack.popnum(); stack.push(         stack.popnum() >> x);             result = false; break; }
+        case 'OP_BOOLAND':                          stack.push(stack.popbool() && stack.popbool());                       break;
+        case 'OP_BOOLOR':                           stack.push(stack.popbool() || stack.popbool());                       break;
+        case 'OP_NUMEQUAL':                         stack.push(         stack.popnum() === stack.popnum());               break;
+        case 'OP_NUMEQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_NUMEQUAL'); break;
+        case 'OP_NUMNOTEQUAL':        stack.push(stack.popnum() !== stack.popnum()); break;
+        case 'OP_LESSTHAN':           stack.push(stack.popnum() >   stack.popnum()); break;
+        case 'OP_GREATERTHAN':        stack.push(stack.popnum() <   stack.popnum()); break;
+        case 'OP_LESSTHANOREQUAL':    stack.push(stack.popnum() >=  stack.popnum()); break;
+        case 'OP_GREATERTHANOREQUAL': stack.push(stack.popnum() <=  stack.popnum()); break;
+        case 'OP_MIN':    { let x   = stack.popnum(); let y   = stack.popnum();                         stack.push((x < y) ? x : y);     break; }
+        case 'OP_MAX':    { let x   = stack.popnum(); let y   = stack.popnum();                         stack.push((x > y) ? x : y);     break; }
+        case 'OP_WITHIN': { let max = stack.popnum(); let min = stack.popnum(); let x = stack.popnum(); stack.push(min <= x && x < max); break; }
         case 'OP_RIPEMD160': stack.push(       ripemd(Buffer.from(stack.pop(),'hex')) .toString('hex')); break;
+        case 'OP_SHA1':      stack.push(       sha1  (Buffer.from(stack.pop(),'hex')) .toString('hex')); break;
         case 'OP_SHA256':    stack.push(       sha256(Buffer.from(stack.pop(),'hex')) .toString('hex')); break;
         case 'OP_HASH160':   stack.push(ripemd(sha256(Buffer.from(stack.pop(),'hex'))).toString('hex')); break;
         case 'OP_HASH256':   stack.push(sha256(sha256(Buffer.from(stack.pop(),'hex'))).toString('hex')); break;
         case 'OP_CODESEPARATOR': subscr = Array.from(script); break;
-        case 'OP_CHECKSIG': let pk = stack.pop(); let sig = stack.pop(); stack.push(verify(pk,sig,subscr,buildtx)); break;
+        case 'OP_CHECKSIG': { let pk = stack.pop(); let sig = stack.pop(); stack.push(verify(pk,sig,subscr,buildtx)); break; }
         case 'OP_CHECKSIGVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_CHECKSIG'); break;
-        case 'OP_CHECKMULTISIG':
+        case 'OP_CHECKMULTISIG': {
           let M = stack.pop(); let pks = []; for (let i = 0 ; i < M ; i += 1) pks.push(stack.pop());
           let N = stack.pop(); let shs = []; for (let i = 0 ; i < N ; i += 1) shs.push(stack.pop());
-          if (stack.length && top(stack) === 0) stack.pop();
+          if (!stack.isempty() && stack.top() === '00') stack.pop();
           let n = 0;
           for (let sh of shs) {
             for (let pk of pks) {
@@ -191,6 +221,7 @@ namespace Script {
           }
           stack.push(n === N);
           break;
+        }
         case 'OP_CHECKMULTISIGVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_CHECKMULTISIG'); break;
         case 'OP_NOP1':  break;
         case 'OP_CHECKLOCKTIMEVERIFY': break;
@@ -207,9 +238,9 @@ namespace Script {
       }
       if (debug) console.log(result,script,stack,if_level,if_stack);
     }
-    if (stack.length) result = result && stack.pop();
+    if (!stack.isempty) result = result && stack.pop();
     if (result                                  &&
-        stack.length           !== 0            &&
+        !stack.isempty()                        &&
         scriptpubkey   .length === 3            &&
         scriptpubkey[0]        === 'OP_HASH160' &&
         scriptpubkey[1].length === 40           &&
@@ -354,7 +385,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 251527 ; ; i += 1) {
+  for (let i = 251684 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
