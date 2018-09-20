@@ -33,8 +33,9 @@ namespace Utils {
 namespace Script {
   // https://en.bitcoin.it/wiki/Script
   let opcodes = ['OP_1NEGATE', 'OP_0', 'OP_1', 'OP_2', 'OP_3', 'OP_4', 'OP_5', 'OP_6', 'OP_7', 'OP_8', 'OP_9', 'OP_10', 'OP_11', 'OP_12', 'OP_13', 'OP_14', 'OP_15', 'OP_16', 'OP_NOP', 'OP_VER', 'OP_IF', 'OP_NOTIF', 'OP_VERIF', 'OP_VERNOTIF', 'OP_ELSE', 'OP_ENDIF', 'OP_VERIFY', 'OP_RETURN', 'OP_TOALTSTACK', 'OP_FROMALTSTACK', 'OP_2DROP', 'OP_2DUP', 'OP_3DUP', 'OP_2OVER', 'OP_2ROT', 'OP_2SWAP', 'OP_IFDUP', 'OP_DEPTH', 'OP_DROP', 'OP_DUP', 'OP_NIP', 'OP_OVER', 'OP_PICK', 'OP_ROLL', 'OP_ROT', 'OP_SWAP', 'OP_TUCK', 'OP_CAT', 'OP_SUBSTR', 'OP_LEFT', 'OP_RIGHT', 'OP_SIZE', 'OP_INVERT', 'OP_AND', 'OP_OR', 'OP_XOR', 'OP_EQUAL', 'OP_EQUALVERIFY', 'OP_RESERVED1', 'OP_RESERVED2', 'OP_1ADD', 'OP_1SUB', 'OP_2MUL', 'OP_2DIV', 'OP_NEGATE', 'OP_ABS', 'OP_NOT', 'OP_0NOTEQUAL', 'OP_ADD', 'OP_SUB', 'OP_MUL', 'OP_DIV', 'OP_MOD', 'OP_LSHIFT', 'OP_RSHIFT', 'OP_BOOLAND', 'OP_BOOLOR', 'OP_NUMEQUAL', 'OP_NUMEQUALVERIFY', 'OP_NUMNOTEQUAL', 'OP_LESSTHAN', 'OP_GREATERTHAN', 'OP_LESSTHANOREQUAL', 'OP_GREATERTHANOREQUAL', 'OP_MIN', 'OP_MAX', 'OP_WITHIN', 'OP_RIPEMD160', 'OP_SHA1', 'OP_SHA256', 'OP_HASH160', 'OP_HASH256', 'OP_CODESEPARATOR', 'OP_CHECKSIG', 'OP_CHECKSIGVERIFY', 'OP_CHECKMULTISIG', 'OP_CHECKMULTISIGVERIFY', 'OP_NOP1', 'OP_CHECKLOCKTIMEVERIFY', 'OP_CHECKSEQUENCEVERIFY', 'OP_NOP4', 'OP_NOP5', 'OP_NOP6', 'OP_NOP7', 'OP_NOP8', 'OP_NOP9', 'OP_NOP10'];
-  export const parse = (bin : Buffer) : string[] => {
-    if (bin.length === 0) return [];
+  export const parse = (bin : Buffer, limit : number = 4294967295) : string[] => {
+    limit -= 1;
+    if (bin.length === 0 || limit < 0) return [];
     let op : number; [op,bin] = Utils.parsefixint(bin,1);
     let asm : string[] = [];
     let buf : Buffer;
@@ -45,9 +46,9 @@ namespace Script {
       case  76: [op,bin] = Utils.parsefixint(bin,1); asm.push('OP_PUSHDATA1(' + op + ')'); [buf,bin] = Utils.parsefixlen(bin,op); asm.push(buf.toString('hex')); break;
       case  77: [op,bin] = Utils.parsefixint(bin,2); asm.push('OP_PUSHDATA2(' + op + ')'); [buf,bin] = Utils.parsefixlen(bin,op); asm.push(buf.toString('hex')); break;
       case  78: [op,bin] = Utils.parsefixint(bin,4); asm.push('OP_PUSHDATA4(' + op + ')'); [buf,bin] = Utils.parsefixlen(bin,op); asm.push(buf.toString('hex')); break;
-      default: throw new Error("unknown opcode: " + op); break;
+      default:                                       asm.push('OP_INVALIDOPCODE');                                                                               break;
     }
-    return asm.concat(parse(bin));
+    return asm.concat(parse(bin,limit));
   };
   let render = (opcode : number, buflensize : number, buf : Buffer) : Buffer => {
     let bufs : Buffer[] = [];
@@ -201,6 +202,7 @@ namespace Script {
         case 'OP_NOP8':  break;
         case 'OP_NOP9':  break;
         case 'OP_NOP10': break;
+        case 'OP_INVALIDOPCODE': result = false; break;
         default: throw new Error("unsupported opcode: " + op); break;
       }
       if (debug) console.log(result,script,stack,if_level,if_stack);
@@ -239,6 +241,7 @@ namespace Transaction {
       value        : number;
       scriptPubKey : { asm : string[]; hex : Buffer; };
     }[];
+    witness  : Buffer[];
     locktime : number;
   };
   export const parse = (bin : Buffer, vrfy : boolean = false) : parsed => {
@@ -268,7 +271,12 @@ namespace Transaction {
       [tx.vout[i].scriptPubKey.hex,bin] = Utils.parsefixlen(bin,len);
       tx.vout[i].scriptPubKey.asm = Script.parse(tx.vout[i].scriptPubKey.hex);
     }
-    if (tx.flag) throw new Error("flagged transactions not supported");
+    tx.witness = [];
+    if (tx.flag) for (let i = 0 ; i < vincnt ; i += 1) {
+      let cnt : number; [cnt,      bin] = Utils.parsefixint(bin,1);
+      tx.witness[i] = Script.assemble(Script.parse(bin,cnt));
+      bin = bin.slice(tx.witness[i].length);
+    }
     [tx.locktime,                  bin] = Utils.parsefixint(bin,4);
     if (bin.length) throw new Error("transaction parsing failed");
     return tx;
@@ -346,7 +354,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 249976 ; ; i += 1) {
+  for (let i = 251527 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);

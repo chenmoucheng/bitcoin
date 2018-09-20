@@ -38,3 +38,6 @@ Format: block height, TX, URL
 249976,  10, https://www.blockchain.com/btc/tx/da47bd83967d81f3cf6520f4ff81b3b6c4797bfe7ac2b5969aedbf01a840cda6
   OP_IF stuff.
 
+251527,  52, https://www.blockchain.com/btc/tx/8a68c461a2473653fe0add786f0ca6ebb99b257286166dfb00707be24716af3a
+  OP_INVALIDEOPCODE.
+
