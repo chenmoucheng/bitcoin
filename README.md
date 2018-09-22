@@ -44,3 +44,9 @@ Format: block height, TX, URL
 251684,   9, https://www.blockchain.com/btc/tx/61a078472543e9de9247446076320499c108b52307d8d0fafbe53b5c4e32acc4
   HASH256 some numerical value.
 
+251898,  90, https://www.blockchain.com/btc/tx/f2d72a7bf22e29e3f2dc721afbf0a922860f81db9fc7eb397937f9d7e87cc438
+  OP_DEPTH.
+
+251898,  99, https://www.blockchain.com/btc/tx/cd874fa8cb0e2ec2d385735d5e1fd482c4fe648533efb4c50ee53bda58e15ae2
+  OP_SWAP.
+

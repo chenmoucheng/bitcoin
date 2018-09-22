@@ -101,7 +101,8 @@ namespace Script {
   class Stack {
     store : string[];
     constructor() { this.store = []; }
-    isempty() : boolean { return this.store.length === 0; }
+    length() : number { return this.store.length; }
+    isempty() : boolean { return this.length() === 0; }
     popbool() : boolean { let x = this.pop(); return x !== '' && x !== '00' && x !== '80'; }
     popnum() : number {
       let buf = Buffer.from(this.pop(),'hex');
@@ -166,8 +167,10 @@ namespace Script {
         case 'OP_ENDIF': if_level -= 1; if_stack.pop(); if (if_level < 0) result = false; break;
         case 'OP_VERIFY': if (!stack.popbool()) result = false; break;
         case 'OP_RETURN': result = false; break;
+        case 'OP_DEPTH': stack.push(stack.length()); break;
         case 'OP_DROP': stack.pop(); break;
-        case 'OP_DUP': { let x = stack.pop(); stack.push(x); stack.push(x); break; }
+        case 'OP_DUP':  { let x = stack.pop();                      stack.push(x); stack.push(x); break; }
+        case 'OP_SWAP': { let x = stack.pop(); let y = stack.pop(); stack.push(x); stack.push(y); break; }
         case 'OP_SIZE': stack.push(Buffer.from(stack.top(),'hex').length.toString(16)); break;
         case 'OP_EQUAL': stack.push(stack.pop() === stack.pop()); break;
         case 'OP_EQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_EQUAL'); break;
@@ -385,7 +388,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 251684 ; ; i += 1) {
+  for (let i = 251898 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
