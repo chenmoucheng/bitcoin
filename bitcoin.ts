@@ -133,6 +133,7 @@ namespace Script {
     let script = Array.from(scriptsig).concat(scriptpubkey);
     let subscr = Array.from(scriptpubkey);
     let stack = new Stack();
+    let altstack = new Stack();
     let if_level = 0;
     let if_stack : boolean[] = [];
     if (debug) console.log(result,script,stack,if_level,if_stack);
@@ -167,6 +168,8 @@ namespace Script {
         case 'OP_ENDIF': if_level -= 1; if_stack.pop(); if (if_level < 0) result = false; break;
         case 'OP_VERIFY': if (!stack.popbool()) result = false; break;
         case 'OP_RETURN': result = false; break;
+        case 'OP_TOALTSTACK': altstack.push(   stack.pop()); break;
+        case 'OP_FROMALTSTACK':  stack.push(altstack.pop()); break;
         case 'OP_DEPTH': stack.push(stack.length()); break;
         case 'OP_DROP': stack.pop(); break;
         case 'OP_DUP':  { let x = stack.pop();                      stack.push(x); stack.push(x); break; }
@@ -275,8 +278,33 @@ namespace Transaction {
       value        : number;
       scriptPubKey : { asm : string[]; hex : Buffer; };
     }[];
-    witness  : Buffer[];
+    witness  : {
+      len          : number;
+      item         : Buffer;
+    }[];
     locktime : number;
+  };
+  let render = (prefix : number, xlen : number, x : number) : Buffer => {
+    let buf : Buffer; let len = (xlen > 6) ? 6 : xlen;
+    if (prefix === undefined) { buf = Buffer.alloc(    xlen);                              if (x < 0) { buf.writeIntLE(x,0,len) ; buf.writeIntLE(-1,    len,xlen - len); } else buf.writeUIntLE(x,0,len); }
+    else {                      buf = Buffer.alloc(1 + xlen); buf.writeUIntLE(prefix,0,1); if (x < 0) { buf.writeIntLE(x,1,len) ; buf.writeIntLE(-1,1 + len,xlen - len); } else buf.writeUIntLE(x,1,len); }
+    return buf;
+  };
+  let fixint = (x : number, n : number) : Buffer => {
+    switch (n) {
+      case 1: return render(undefined,1,x); break;
+      case 2: return render(undefined,2,x); break;
+      case 4: return render(undefined,4,x); break;
+      case 8: return render(undefined,8,x); break;
+      default: throw new RangeError(); break;
+    }
+  };
+  let varint = (x : number) : Buffer => {
+         if (x <          0) { throw new RangeError(); }
+    else if (x <        253) { return render(undefined,1,x); }
+    else if (x <      65536) { return render(253,      2,x); }
+    else if (x < 4294967296) { return render(254,      4,x); }
+    else {                     return render(255,      8,x); }
   };
   export const parse = (bin : Buffer, vrfy : boolean = false) : parsed => {
     let tx : any = {};
@@ -307,39 +335,21 @@ namespace Transaction {
     }
     tx.witness = [];
     if (tx.flag) for (let i = 0 ; i < vincnt ; i += 1) {
-      let cnt : number; [cnt,      bin] = Utils.parsefixint(bin,1);
-      tx.witness[i] = Script.assemble(Script.parse(bin,cnt));
-      bin = bin.slice(tx.witness[i].length);
+      tx.witness[i] = { len: 0, item: Buffer.alloc(0) };
+      let cnt : number; [cnt,      bin] = Utils.parsevarint(bin);
+      for (let j = 0 ; j < cnt ; j += 1) {
+        [tx.witness[i].len,        bin] = Utils.parsevarint(bin);
+        [tx.witness[i].item,       bin] = Utils.parsefixlen(bin,tx.witness[i].len);
+      }
     }
     [tx.locktime,                  bin] = Utils.parsefixint(bin,4);
     if (bin.length) throw new Error("transaction parsing failed");
     return tx;
   };
-  let render = (prefix : number, xlen : number, x : number) : Buffer => {
-    let buf : Buffer; let len = (xlen > 6) ? 6 : xlen;
-    if (prefix === undefined) { buf = Buffer.alloc(    xlen);                              if (x < 0) { buf.writeIntLE(x,0,len) ; buf.writeIntLE(-1,    len,xlen - len); } else buf.writeUIntLE(x,0,len); }
-    else {                      buf = Buffer.alloc(1 + xlen); buf.writeUIntLE(prefix,0,1); if (x < 0) { buf.writeIntLE(x,1,len) ; buf.writeIntLE(-1,1 + len,xlen - len); } else buf.writeUIntLE(x,1,len); }
-    return buf;
-  };
-  let fixint = (x : number, n : number) : Buffer => {
-    switch (n) {
-      case 1: return render(undefined,1,x); break;
-      case 2: return render(undefined,2,x); break;
-      case 4: return render(undefined,4,x); break;
-      case 8: return render(undefined,8,x); break;
-      default: throw new RangeError(); break;
-    }
-  };
-  let varint = (x : number) : Buffer => {
-         if (x <          0) { throw new RangeError(); }
-    else if (x <        253) { return render(undefined,1,x); }
-    else if (x <      65536) { return render(253,      2,x); }
-    else if (x < 4294967296) { return render(254,      4,x); }
-    else {                     return render(255,      8,x); }
-  };
   export const assemble = (tx : parsed) : Buffer => {
     let bin : Buffer[] = [];
     bin.push(fixint(tx.version,4));
+    if (tx.flag) bin.push(Buffer.from([0,1]));
     bin.push(varint(tx.vin.length));
     for (let vin of tx.vin) {
       bin.push(Utils.reverse(vin.txid));
@@ -353,6 +363,12 @@ namespace Transaction {
       bin.push(fixint(vout.value,8));
       bin.push(varint(vout.scriptPubKey.hex.length));
       bin.push(       vout.scriptPubKey.hex);
+    }
+    if (tx.flag) {
+      for (let witness of tx.witness) {
+        bin.push(varint(witness.len));
+        bin.push(       witness.item);
+      }
     }
     bin.push(fixint(tx.locktime,4));
     return Buffer.concat(bin);
@@ -388,7 +404,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 251898 ; ; i += 1) {
+  for (let i = 256961 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
