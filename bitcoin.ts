@@ -111,7 +111,7 @@ namespace Script {
       return (buf[0] & 128) ? -y : y;
     }
     pop() : any { return this.store.pop(); }
-    top() : any { return this.store[this.store.length - 1]; }
+    top(x : number = 0) : any { return this.store[this.store.length - 1 - x]; }
     push(x : any) {
       let y : string;
       if (typeof x === 'boolean') y = x ? '01' : '00';
@@ -173,6 +173,8 @@ namespace Script {
         case 'OP_DEPTH': stack.push(stack.length()); break;
         case 'OP_DROP': stack.pop(); break;
         case 'OP_DUP':  { let x = stack.pop();                      stack.push(x); stack.push(x); break; }
+        case 'OP_NIP':  { let x = stack.pop(); let y = stack.pop(); stack.push(x);                break; }
+        case 'OP_PICK': { let x = stack.pop();                      stack.push(stack.top(x));     break; }
         case 'OP_SWAP': { let x = stack.pop(); let y = stack.pop(); stack.push(x); stack.push(y); break; }
         case 'OP_SIZE': stack.push(Buffer.from(stack.top(),'hex').length.toString(16)); break;
         case 'OP_EQUAL': stack.push(stack.pop() === stack.pop()); break;
@@ -404,7 +406,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 256961 ; ; i += 1) {
+  for (let i = 268561 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);

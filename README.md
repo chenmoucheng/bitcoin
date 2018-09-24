@@ -53,3 +53,6 @@ Format: block height, TX, URL
 256961,   1, https://www.blockchain.com/btc/tx/54fabd73f1d20c980a0686bf0035078e07f69c58437e4d586fb29aa0bee9814f
   OP_TOALTSTACK and OP_FROMALTSTACK.
 
+268561, 1652, https://www.blockchain.com/btc/tx/9fb65b7304aaa77ac9580823c2c06b259cc42591e5cce66d76a81b6f51cc5c28
+  OP_PICK and OP_NIP.
+
