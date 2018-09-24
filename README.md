@@ -59,3 +59,6 @@ Format: block height, TX, URL
 269614, 458, https://www.blockchain.com/btc/tx/aef4cf7abcd4344ae612d5f27735010a26e5102af20a97a5f43802583d72eb78
   OP_TUCK, OP_ROT, and OP_ROLL.
 
+269628, 698, https://www.blockchain.com/btc/tx/fd9d8d6156233ffc84c4c6c76b265ab1fd947bb4e99475a19d9d54da6d226556
+  Short-circuited BOOLAND does not work.
+

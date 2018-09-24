@@ -200,8 +200,8 @@ namespace Script {
         case 'OP_MOD':    { let x = stack.popnum(); stack.push(         stack.popnum() %  x);             result = false; break; }
         case 'OP_LSHIFT': { let x = stack.popnum(); stack.push(         stack.popnum() << x);             result = false; break; }
         case 'OP_RSHIFT': { let x = stack.popnum(); stack.push(         stack.popnum() >> x);             result = false; break; }
-        case 'OP_BOOLAND':                          stack.push(stack.popbool() && stack.popbool());                       break;
-        case 'OP_BOOLOR':                           stack.push(stack.popbool() || stack.popbool());                       break;
+        case 'OP_BOOLAND': { let x = stack.popbool(); stack.push(       stack.popbool() && x);                            break; }
+        case 'OP_BOOLOR':  { let x = stack.popbool(); stack.push(       stack.popbool() || x);                            break; }
         case 'OP_NUMEQUAL':                         stack.push(         stack.popnum() === stack.popnum());               break;
         case 'OP_NUMEQUALVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_NUMEQUAL'); break;
         case 'OP_NUMNOTEQUAL':        stack.push(stack.popnum() !== stack.popnum()); break;
@@ -412,7 +412,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 269614 ; ; i += 1) {
+  for (let i = 269628 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
