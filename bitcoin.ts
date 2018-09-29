@@ -286,10 +286,7 @@ namespace Transaction {
       value        : number;
       scriptPubKey : { asm : string[]; hex : Buffer; };
     }[];
-    witness  : {
-      len          : number;
-      item         : Buffer;
-    }[];
+    witness  : Buffer[][];
     locktime : number;
   };
   let render = (prefix : number, xlen : number, x : number) : Buffer => {
@@ -341,13 +338,13 @@ namespace Transaction {
       [tx.vout[i].scriptPubKey.hex,bin] = Utils.parsefixlen(bin,len);
       tx.vout[i].scriptPubKey.asm = Script.parse(tx.vout[i].scriptPubKey.hex);
     }
-    tx.witness = [];
+    tx.witness = tx.flag ? Array(vincnt) : [];
     if (tx.flag) for (let i = 0 ; i < vincnt ; i += 1) {
-      tx.witness[i] = { len: 0, item: Buffer.alloc(0) };
-      let cnt : number; [cnt,      bin] = Utils.parsevarint(bin);
-      for (let j = 0 ; j < cnt ; j += 1) {
-        [tx.witness[i].len,        bin] = Utils.parsevarint(bin);
-        [tx.witness[i].item,       bin] = Utils.parsefixlen(bin,tx.witness[i].len);
+      let len : number; [len,      bin] = Utils.parsevarint(bin);
+      tx.witness[i] = Array(len);
+      for (let j = 0 ; j < tx.witness[i].length ; j += 1) {
+        [len,                      bin] = Utils.parsevarint(bin);
+        [tx.witness[i][j],         bin] = Utils.parsefixlen(bin,len);
       }
     }
     [tx.locktime,                  bin] = Utils.parsefixint(bin,4);
@@ -372,10 +369,11 @@ namespace Transaction {
       bin.push(varint(vout.scriptPubKey.hex.length));
       bin.push(       vout.scriptPubKey.hex);
     }
-    if (tx.flag) {
-      for (let witness of tx.witness) {
-        bin.push(varint(witness.len));
-        bin.push(       witness.item);
+    if (tx.flag) for (let witness of tx.witness) {
+      bin.push(varint(witness.length));
+      for (let item of witness) {
+        bin.push(varint(item.length));
+        bin.push(       item);
       }
     }
     bin.push(fixint(tx.locktime,4));
@@ -412,7 +410,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 269628 ; ; i += 1) {
+  for (let i = 289640 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
