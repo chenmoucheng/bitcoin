@@ -173,6 +173,12 @@ namespace Script {
         case 'OP_RETURN': result = false; break;
         case 'OP_TOALTSTACK': altstack.push(   stack.pop()); break;
         case 'OP_FROMALTSTACK':  stack.push(altstack.pop()); break;
+        case 'OP_2DROP': stack.pop(); stack.pop(); break;
+        case 'OP_2DUP':  {                                                                                         let x2 = stack.pop(); let x1 = stack.pop(); stack.push(x1); stack.push(x2);                 stack.push(x1); stack.push(x2);                 break; }
+        case 'OP_3DUP':  {                                                                   let x3 = stack.pop(); let x2 = stack.pop(); let x1 = stack.pop(); stack.push(x1); stack.push(x2); stack.push(x3); stack.push(x1); stack.push(x2); stack.push(x3); break; }
+        case 'OP_2OVER': {                                             let x4 = stack.pop(); let x3 = stack.pop(); let x2 = stack.pop(); let x1 = stack.pop(); stack.push(x1); stack.push(x2); stack.push(x3); stack.push(x4); stack.push(x1); stack.push(x2); break; }
+        case 'OP_2ROT':  { let x6 = stack.pop(); let x5 = stack.pop(); let x4 = stack.pop(); let x3 = stack.pop(); let x2 = stack.pop(); let x1 = stack.pop(); stack.push(x3); stack.push(x4); stack.push(x5); stack.push(x6); stack.push(x1); stack.push(x2); break; }
+        case 'OP_2SWAP': {                                             let x4 = stack.pop(); let x3 = stack.pop(); let x2 = stack.pop(); let x1 = stack.pop(); stack.push(x3); stack.push(x4);                                 stack.push(x1); stack.push(x2); break; }
         case 'OP_DEPTH': stack.push(stack.length()); break;
         case 'OP_DROP': stack.pop(); break;
         case 'OP_DUP':  {                                             let x1 = stack.pop(); stack.push(x1); stack.push(x1);                 break; }
@@ -441,7 +447,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 481824 ; ; i += 1) {
+  for (let i = 297775 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
