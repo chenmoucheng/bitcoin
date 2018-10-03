@@ -63,5 +63,8 @@ Format: block height, TX, URL
   Short-circuited BOOLAND does not work.
 
 297775,  47, https://www.blockchain.com/btc/tx/7afdcb9067f6549a569116a79cb1256920a0c566ff36cf4dce88718d57402f4f
-  OP_2DUP
+  OP_2DUP.
+
+306609,  18, https://www.blockchain.com/btc/tx/2c1462024303955581e74ff750a019ed817f682191eb1ef7e3162d91a17cb633
+  Comparing different representations of zero.
 

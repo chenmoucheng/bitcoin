@@ -110,7 +110,7 @@ namespace Script {
       let y = 128*x + (buf[0] & 127);
       return (buf[0] & 128) ? -y : y;
     }
-    pop() : any { return this.store.pop(); }
+    pop() : any { let x = this.store.pop(); return (x !== '00' && x !== '80') ? x : ''; }
     top(x : number = 0, remove : boolean = false) : any {
       let i = this.store.length - 1 - x;
       return remove ? this.store.splice(i,1)[0] : this.store[i];
@@ -447,7 +447,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 298928 ; ; i += 1) {
+  for (let i = 306609 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
