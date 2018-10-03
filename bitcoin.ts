@@ -103,12 +103,13 @@ namespace Script {
     constructor(init_store : string[] = []) { this.store = Array.from(init_store); }
     length() : number { return this.store.length; }
     isempty() : boolean { return this.length() === 0; }
-    popbool() : boolean { let x = this.pop(); return x !== '' && x !== '00' && x !== '80'; }
+    popbool() : boolean { let x = this.pop(); return x !== ''; }
     popnum() : number {
       let buf = Buffer.from(this.pop(),'hex');
+      let w = (buf.length) ? buf[0] : 0;
       let x = (buf.length > 1) ? parseInt(Utils.reverse(buf.slice(1)).toString('hex'),16) : 0;
-      let y = 128*x + (buf[0] & 127);
-      return (buf[0] & 128) ? -y : y;
+      let y = 128*x + (w & 127);
+      return (w & 128) ? -y : y;
     }
     pop() : any { let x = this.store.pop(); return (x !== '00' && x !== '80') ? x : ''; }
     top(x : number = 0, remove : boolean = false) : any {
@@ -117,13 +118,15 @@ namespace Script {
     }
     push(x : any) {
       let y : string;
-      if (typeof x === 'boolean') y = x ? '01' : '00';
+      if (typeof x === 'boolean') y = x ? '01' : '';
       else if (typeof x === 'number') {
         let xx = Math.abs(x);
-        let buf = Buffer.alloc((xx < 128) ? 1 : (xx < 32768) ? 2 : (xx < 2147483648) ? 4 : 6);
+        let buf = Buffer.alloc((x === 0) ? 0 : (xx < 128) ? 1 : (xx < 32768) ? 2 : (xx < 2147483648) ? 4 : 6);
         if (buf.length > 1) buf.writeUIntLE(xx >> 7,1,buf.length - 1);
-        buf.writeUIntLE(xx & 127,0,1);
-        if (x < 0) buf[0] |= 128;
+        if (buf.length) {
+          buf.writeUIntLE(xx & 127,0,1);
+          if (x < 0) buf[0] |= 128;
+        }
         y = buf.toString('hex');
       }
       else if (typeof x === 'string') y = x;
@@ -231,9 +234,9 @@ namespace Script {
         }
         case 'OP_CHECKSIGVERIFY': script.unshift('OP_VERIFY'); script.unshift('OP_CHECKSIG'); break;
         case 'OP_CHECKMULTISIG': {
-          let M = stack.pop(); let pks = []; for (let i = 0 ; i < M ; i += 1) pks.push(stack.pop());
-          let N = stack.pop(); let shs = []; for (let i = 0 ; i < N ; i += 1) shs.push(stack.pop());
-          if (!stack.isempty() && stack.top() === '00') stack.pop();
+          let M = stack.popnum(); let pks = []; for (let i = 0 ; i < M ; i += 1) pks.push(stack.pop());
+          let N = stack.popnum(); let shs = []; for (let i = 0 ; i < N ; i += 1) shs.push(stack.pop());
+          if (!stack.isempty() && stack.top() === '') stack.pop();
           let n = 0;
           for (let sh of shs) {
             let sig = Buffer.from(sh,'hex');
@@ -447,7 +450,7 @@ namespace Transaction {
 
 let btclient = new bitcoincore({ username: 'chelpis', password: 'chelpis' });
 let main = async () => {
-  for (let i = 306609 ; ; i += 1) {
+  for (let i = 306736 ; ; i += 1) {
     let block = await btclient.getBlock(await btclient.getBlockHash(i));
     for (let j = 1 ; j < block.tx.length ; j += 1) {
       console.log(i,j);
